@@ -5,30 +5,142 @@ import tempfile
 import os
 from collections import defaultdict
 
-st.title("Marine Detection System")
+# -------------------------------
+# PAGE CONFIG
+# -------------------------------
+st.set_page_config(
+    page_title="Marine Detection",
+    layout="wide"
+)
 
 # -------------------------------
-# MODEL SELECTION
+# CUSTOM DESIGN (CSS)
 # -------------------------------
-model_choice = st.selectbox(
-    "Select Model",
+st.markdown("""
+<style>
+
+/* Background */
+.stApp {
+    background: linear-gradient(135deg, #0f172a, #020617);
+    color: #e2e8f0;
+}
+
+/* Title */
+h1 {
+    font-size: 3rem !important;
+    font-weight: 600;
+    text-align: center;
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Cards */
+.card {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+    margin-bottom: 20px;
+}
+
+/* Upload */
+[data-testid="stFileUploader"] {
+    border: 2px dashed #38bdf8;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+/* Buttons */
+.stButton>button {
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    color: white;
+    border-radius: 10px;
+    border: none;
+    padding: 10px 20px;
+    font-weight: 600;
+}
+
+/* Metrics */
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.05);
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# SIDEBAR
+# -------------------------------
+st.sidebar.title("Settings")
+
+st.sidebar.markdown("### Detection Settings")
+
+model_choice = st.sidebar.selectbox(
+    "Model",
     ["Beluga", "Jellyfish"]
 )
 
-if model_choice == "Beluga":
-    model = YOLO("models/beluga/best.pt")
-else:
-    model = YOLO("models/jellyfish/best.pt")
+confidence = st.sidebar.slider(
+    "Confidence",
+    0.0, 1.0, 0.25,
+    help="Minimum confidence required to display a detection"
+)
+
+iou = st.sidebar.slider(
+    "IoU",
+    0.0, 1.0, 0.45,
+    help="Controls overlap filtering between bounding boxes"
+)
+
 
 # -------------------------------
-# FILE UPLOAD (MULTIPLE)
+# LOAD MODEL (CACHED)
 # -------------------------------
+@st.cache_resource
+def load_model(choice):
+    if choice == "Beluga":
+        return YOLO("models/beluga/best.pt")
+    else:
+        return YOLO("models/jellyfish/best.pt")
+
+model = load_model(model_choice)
+
+# -------------------------------
+# HERO SECTION
+# -------------------------------
+st.markdown("""
+<div style="text-align:center; padding: 20px;">
+    <h1>Marine Detection System </h1>
+    <p style="color:#94a3b8; font-size:18px;">
+        Detect Beluga Whales and Jellyfish using YOLO models.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# FILE UPLOAD
+# -------------------------------
+st.markdown('<div class="card">', unsafe_allow_html=True)
+
 uploaded_files = st.file_uploader(
     "Upload Images",
     type=["jpg", "png", "jpeg"],
     accept_multiple_files=True
 )
 
+st.markdown('</div>', unsafe_allow_html=True)
+
+# -------------------------------
+# PROCESSING
+# -------------------------------
 all_data = []
 overall_counts = defaultdict(int)
 
@@ -45,14 +157,10 @@ if uploaded_files:
         temp.write(uploaded_file.read())
         temp.close()
 
-        # -------------------------------
-        # RUN DETECTION
-        # -------------------------------
-        results = model(temp.name, conf=0.2, iou=0.4, agnostic_nms=False)
+        results = model(temp.name, conf=confidence, iou=iou)
 
         class_counts = defaultdict(int)
 
-        # FIRST PASS → count per class
         for r in results:
             if r.boxes is None:
                 continue
@@ -63,7 +171,6 @@ if uploaded_files:
                 class_counts[class_name] += 1
                 overall_counts[class_name] += 1
 
-        # SECOND PASS → store detection data
         for r in results:
             if r.boxes is None:
                 continue
@@ -72,7 +179,7 @@ if uploaded_files:
                 cls_id = int(r.boxes.cls[i])
                 class_name = model.names[cls_id]
 
-                confidence = float(r.boxes.conf[i])
+                confidence_score = float(r.boxes.conf[i])
 
                 x_center = float(r.boxes.xywh[i][0])
                 y_center = float(r.boxes.xywh[i][1])
@@ -82,7 +189,7 @@ if uploaded_files:
                 all_data.append({
                     "image_name": uploaded_file.name,
                     "class": class_name,
-                    "confidence": round(confidence, 3),
+                    "confidence": round(confidence_score, 3),
                     "x_center": round(x_center, 2),
                     "y_center": round(y_center, 2),
                     "width": round(width, 2),
@@ -91,45 +198,61 @@ if uploaded_files:
                 })
 
         # -------------------------------
-        # DISPLAY RESULT PER IMAGE
+        # DISPLAY
         # -------------------------------
-        st.subheader(f"Result: {uploaded_file.name}")
-        st.image(results[0].plot(), caption="Detection Result")
+        col1, col2 = st.columns([3, 1])
 
-        st.write("Summary:")
-        if class_counts:
-            for cls, count in class_counts.items():
-                st.write(f"{cls}: {count}")
-        else:
-            st.write("No objects detected")
+        with col1:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.image(results[0].plot(), use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # cleanup temp file
+        with col2:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.subheader("Detections")
+
+            if class_counts:
+                for cls, count in class_counts.items():
+                    st.metric(cls, count)
+            else:
+                st.write("No objects detected")
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
         os.remove(temp.name)
 
-        # update progress bar
         progress_bar.progress((idx + 1) / total_files)
 
     # -------------------------------
-    # FINAL COMBINED TABLE
+    # DATA TABLE
     # -------------------------------
     df = pd.DataFrame(all_data)
 
-    st.subheader("Combined Detection Table")
-    st.dataframe(df)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("Detection Analytics")
+    st.dataframe(df, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # -------------------------------
     # OVERALL SUMMARY
     # -------------------------------
-    st.subheader("Overall Summary (All Images)")
+    st.subheader("Overall Summary")
 
     if overall_counts:
-        for cls, count in overall_counts.items():
-            st.write(f"{cls}: {count}")
+        cols = st.columns(len(overall_counts))
+        for i, (cls, count) in enumerate(overall_counts.items()):
+            cols[i].metric(cls, count)
     else:
-        st.write("No objects detected in dataset")
+        st.write("No detections found")
 
     # -------------------------------
-    # DOWNLOAD CSV
+    # DOWNLOAD
     # -------------------------------
     csv = df.to_csv(index=False)
-    st.download_button("Download Full CSV", csv, "all_results.csv")
+
+    st.download_button(
+        "Download CSV",
+        csv,
+        "marine_detection_results.csv",
+        use_container_width=True
+    )
