@@ -16,9 +16,9 @@ model_choice = st.selectbox(
 )
 
 if model_choice == "Beluga":
-    model = YOLO("belugo_project/runs/detect/beluga_detection_model3/weights/best.pt")
+    model = YOLO("best.pt")
 else:
-    model = YOLO("jellyfish/runs/detect/jellyfish_detection_model/weights/best.pt")
+    model = YOLO("best.pt")
 
 # -------------------------------
 # FILE UPLOAD (MULTIPLE)
