@@ -16,9 +16,9 @@ model_choice = st.selectbox(
 )
 
 if model_choice == "Beluga":
-    model = YOLO("best.pt")
+    model = YOLO("beluga_best_model.pt")
 else:
-    model = YOLO("best.pt")
+    model = YOLO("jellyfish_best_model.pt")
 
 # -------------------------------
 # FILE UPLOAD (MULTIPLE)
