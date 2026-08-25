@@ -104,15 +104,24 @@ iou = st.sidebar.slider(
 # -------------------------------
 # LOAD MODEL (CACHED)
 # -------------------------------
+from pathlib import Path
+
+# Paths relative to this file, so they work on any host (not just your server)
+APP_DIR = Path(__file__).parent
+MODEL_PATHS = {
+    "Beluga":    APP_DIR / "models" / "beluga" / "best.pt",
+    "Jellyfish": APP_DIR / "models" / "jellyfish" / "best.pt",
+}
+
 @st.cache_resource
 def load_model(choice):
-    if choice == "Beluga":
-        return YOLO("models/beluga/best.pt")
-    else:
-        return YOLO("models/jellyfish/best.pt")
+    path = MODEL_PATHS[choice]
+    if not path.exists():
+        st.error(f"Model not found at {path}")
+        st.stop()
+    return YOLO(str(path))
 
-model = load_model(model_choice)
-
+model = load_model(model_choice)  
 # -------------------------------
 # HERO SECTION
 # -------------------------------
@@ -215,7 +224,7 @@ if uploaded_files:
                 for cls, count in class_counts.items():
                     st.metric(cls, count)
             else:
-                st.write("No objects detected")
+                st.write("No species detected")
 
             st.markdown('</div>', unsafe_allow_html=True)
 
