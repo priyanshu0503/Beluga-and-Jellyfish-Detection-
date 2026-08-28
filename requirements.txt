@@ -1,6 +1,6 @@
 streamlit
 ultralytics
-opencv-python-headless==4.10.0.84
+opencv-python-headless>=4.8,<4.11
 numpy<2
 pandas
 openpyxl
